@@ -13,6 +13,7 @@ export class YtdlpMetadataParser {
       await this.floxy.ytdlp.execAsync(url, {
         dumpJson: true,
         noDownload: true,
+        cookies: this.floxy.config.ytdlpCookiesPath,
         additionalOptions: this.floxy.config.ytdlpExtraArgs ? this.floxy.config.ytdlpExtraArgs.split(" ") : [],
       }),
     );
