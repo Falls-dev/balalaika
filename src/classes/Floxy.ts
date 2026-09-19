@@ -16,6 +16,7 @@ import MediaCacheService from "./MediaCacheService.js";
 import which from "which";
 import { execFileSync } from "node:child_process";
 import { YtdlpMetadataParser } from "./MetadataParser.js";
+import config from "../config.js";
 
 export default class Floxy {
   fastify: FastifyInstance;
