@@ -7,6 +7,7 @@ import { YtDlp } from "./FloxyYtDlp.js";
 import AuthRoutes from "../routes/auth.js";
 import MediaRoutes from "../routes/media.js";
 import OtherRoutes from "../routes/other.js";
+import UserRoutes from "../routes/users.js";
 import { FloxyUserRole } from "../typings/users.js";
 import { dirExistsSync } from "../utils/fs.js";
 import logger, { fastifyLogger } from "../utils/logger.js";
@@ -76,6 +77,7 @@ export default class Floxy {
     this.fastify = fastify({
       loggerInstance: fastifyLogger,
       disableRequestLogging: true,
+      trustProxy: true,
     });
     this.database = new DatabaseManager({
       client: "better-sqlite3",
@@ -115,9 +117,12 @@ export default class Floxy {
   }
 
   private registerFastifyPlugins() {
-    this.fastify.register(fastifyCors, {
-      origin: "*",
-    });
+    const origins = config.CORS_ORIGINS;
+    if (origins.length > 0) {
+      this.fastify.register(fastifyCors, {
+        origin: origins.length === 1 ? origins[0] : origins,
+      });
+    }
   }
 
   private setupFastifyLogging() {
@@ -142,6 +147,7 @@ export default class Floxy {
     await this.fastify.register(AuthRoutes(this));
     await this.fastify.register(MediaRoutes(this));
     await this.fastify.register(OtherRoutes(this));
+    await this.fastify.register(UserRoutes(this));
   }
 
   private async createBaseUsers() {
@@ -153,7 +159,7 @@ export default class Floxy {
         passwordHash: await bcrypt.hash(this.config.adminPassword, 12),
         role: FloxyUserRole.ADMIN,
       });
-      logger.info(`Created default admin user with username: ${newAdmin.username} and password: ${this.config.adminPassword}`);
+      logger.info(`Created default admin user with username: ${newAdmin.username}`);
     }
   }
 
@@ -229,5 +235,10 @@ export default class Floxy {
       logger.error("Failed to start server:", error);
       process.exitCode = 1;
     }
+  }
+
+  public async stop() {
+    await this.fastify.close();
+    await this.database.client.destroy();
   }
 }

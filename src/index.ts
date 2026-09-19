@@ -25,8 +25,8 @@ if (!process.env.DATABASE_FILE) {
   logger.warn(`DATABASE_FILE not set. Defaulting to: ${config.DATABASE_FILE}`);
 }
 
-if (!process.env.ADMIN_PASSWORD) {
-  logger.warn(`ADMIN_PASSWORD not set. Defaulting to ${config.ADMIN_PASSWORD}. Please change this for security reasons.`);
+if (!process.env.ADMIN_PASSWORD || config.ADMIN_PASSWORD === "changeme123!") {
+  throw new ConfigurationError("ADMIN_PASSWORD is required and must not use the example value.");
 }
 
 const floxyInstance = new Floxy({
@@ -49,11 +49,29 @@ process.on("unhandledRejection", error => {
   logger.error("unhandledRejection", error);
 });
 
+let shuttingDown = false;
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info(`Received ${signal}; stopping Floxy.`);
+  try {
+    await floxyInstance.stop();
+    process.exit(0);
+  } catch (error) {
+    logger.error("Failed to stop Floxy cleanly:", error);
+    process.exit(1);
+  }
+};
+
+process.once("SIGINT", () => void shutdown("SIGINT"));
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+
 try {
   logger.info("Setting up Floxy");
   await floxyInstance.setup();
   logger.info("Starting Floxy");
   await floxyInstance.start();
 } catch (error) {
-  logger.error("Error occured starting Floxy:", error);
+  logger.error("Error occurred while starting Floxy:", error);
+  process.exitCode = 1;
 }

@@ -5,18 +5,33 @@ import { findFile } from "./utils/fs.js";
 
 dotenv.config({ quiet: true });
 
+export class ConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConfigurationError";
+  }
+}
+
+const envList = (value: string | undefined) => value?.split(",").map(item => item.trim()).filter(notEmpty) ?? [];
+
+const port = Number(process.env.PORT ?? 3050);
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  throw new ConfigurationError("PORT must be an integer between 1 and 65535.");
+}
+
 const config = {
   HOST: process.env.HOST || "127.0.0.1",
-  PORT: Number(process.env.PORT) || 3050,
+  PORT: port,
   JWT_SECRET: process.env.JWT_SECRET ?? "supersecretkey",
   DELETION_SECRET: process.env.DELETION_SECRET ?? "STRONGDELETIONSECRET",
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? "changeme123!",
   SENTRY_DSN: process.env.SENTRY_DSN,
   CACHE_FOLDER: path.resolve(process.env.CACHE_FOLDER || path.join(process.cwd(), "cache")),
   /// Separated by commas
-  EXTERNAL_CACHE_ENDPOINTS: process.env.EXTERNAL_CACHE_ENDPOINTS?.split(",").filter(notEmpty).map(e=>e.trim()) ?? [],
+  EXTERNAL_CACHE_ENDPOINTS: envList(process.env.EXTERNAL_CACHE_ENDPOINTS),
+  CORS_ORIGINS: envList(process.env.CORS_ORIGINS),
   YTDLP_COOKIES_PATH: process.env.YTDLP_COOKIES_PATH
-    ? await findFile("cookies.txt", [""])
+    ? path.resolve(process.env.YTDLP_COOKIES_PATH)
     : await findFile("cookies.txt", [process.cwd(), path.join(import.meta.dirname, "..")]),
   LOGGER_PRETTY: BooleanLike(process.env.LOGGER_PRETTY),
   DEBUG: BooleanLike(process.env.DEBUG),
@@ -27,12 +42,5 @@ const config = {
   DATABASE_FILE: path.resolve(process.env.DATABASE_FILE || path.join(process.cwd(), "floxy.sqlite")),
   LOGS_PATH: process.env.LOGS_PATH ?? path.join(process.cwd(), "logs"),
 };
-
-export class ConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ConfigurationError";
-  }
-}
 
 export default config;

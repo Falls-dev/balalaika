@@ -1,98 +1,112 @@
+# API Floxy-Balalaika
 
+Базовый путь API - `/api`. Все ответы и запросы с телом используют JSON. За исключением `POST /api/login` и `GET /api`, маршруты требуют заголовок:
 
-# API routes
-## Media caching/requesting
-`POST /api/media/queue` - Add media to be fetched, to the queue. If media is already cached in some form, will return 409 Conflict
-  - query params:
-    - url: required, string, link to media to attempt to download.
-    - ttl: optional, number (seconds), time this media should be available on the cache for, defaults to config/env setting
-    - profile: optional, string, must be one of the supported profiles, provided at /api
-		- bitrate: optional, number, profile is required if this is specified. 
-		- dontcleantitle: optional, boolean, whether or not to clean metadata tiles of garbage (typically youll want this if you're downloading music)
-    - extra: optional, JSON string, notes to store about this particular cache. example: ckey info, player info,
-`POST /api/ytdlp |/api/ytdlp/:id` - Given a url, will fetch and return the raw JSON from yt-dlp's -J param
-  At least of the following is required.
-  - Url Params:
-    - id: string, media entry ID 
-  - query params:
-    - url: string, link to media
-Example output for single:
-```json
-{
-	"title": "Traumatic Glitch",
-	"artist": "Flleeppyy",
-	"album": "Monkestation Lobby Jams Vol. 1",
-	"albumArtist": [
-		"Flleeppyy",
-		"Chronoquest",
-		"T87-Sulfurhead",
-		"AMPMATIC"
-	],
-	"year": 2025,
-	"genre": [
-		"electronic",
-		"California"
-	],
-	"duration": 200.555,
-	"url": "https://flleeppyy.bandcamp.com/track/traumatic-glitch"
-}
+```http
+Authorization: Bearer <JWT>
 ```
 
-Example output for album/playlist
+Получите JWT через вход. Ошибки авторизации возвращают `401` или `403` с полем `error`.
+
+## Состояние сервиса
+
+### `GET /api`
+
+Не требует авторизации. Возвращает `status`, версию, статистику кеша, настроенные публичные URL кеша и доступные профили перекодирования.
+
+## Аутентификация и токены
+
+### `POST /api/login`
+
+Тело:
+
 ```json
-[
-	{
-		"title": "Artificial",
-		"artist": "Flleeppyy",
-		"album": "Artificial Flavoring",
-		"albumArtist": [
-			"Flleeppyy"
-		],
-		"year": 2024,
-		"genre": [
-			"electronic",
-			"California"
-		],
-		"duration": 274.909,
-		"url": "https://flleeppyy.bandcamp.com/track/artificial-2"
-	},
-	{
-		"title": "Flavoring",
-		"artist": "Flleeppyy",
-		"album": "Artificial Flavoring",
-		"albumArtist": [
-			"Flleeppyy"
-		],
-		"year": 2024,
-		"genre": [
-			"electronic",
-			"California"
-		],
-		"duration": 255.469,
-		"url": "https://flleeppyy.bandcamp.com/track/flavoring"
-	}
-]
+{ "username": "admin", "password": "пароль" }
 ```
 
-`GET /api/media/:id` - Get a media cache, returns JSON, includes data about the media, valid means it's still valid on the server, provides path on webserver from root (/) to the audio/media file to serve.will also include metadata about the file if it finds it in the MP3/ogg/medias data or whatever. should return length of audio too in millisecond.
+При успехе возвращает пользователя и JWT со сроком действия 8 часов. При неудачном входе возвращает ошибку `401`.
 
-`DELETE /api/media/:id` Invalidates cache, cache file will be retained for 30 days, unavailable for serving.
-  - When a request is made to this route, the file is moved to a private cache folder, 
-  - query params:
-    - hard: optional, boolean, if true, will delete the file immediately instead of marking it as deleted and retaining for 30 days.
+### `POST /api/token`
 
-`GET /api/media/` - list all media caches, with query params to filter by valid, expired, etc. (has pagination)
-  - query params:
-    - valid: optional, boolean, filter by valid or expired caches
-    - page: optional, number, page number for pagination
-    - limit: optional, number, number of items per page
+Только с доступом админа. Выпускает токен для уже существующего пользователя. Тело:
 
-## User authentication.
+```json
+{ "username": "user", "durationHours": 24 }
+```
 
-just copy veyra lols
+`durationHours` необязателен, максимальное значение 8760 часов (365 суток). Ответ содержит `token`, `expiresIn` (в секундах) и `expiresAt` (Unix-время в миллисекундах).
 
-allow user creation via api, and use JWT tokens for sessions. 
+## Медиа-кеш
 
-# flow
+### `GET /api/media?page=1&limit=20`
 
-AUth via 
+Возвращает страницу записей кеша. `page` начинается с 1; `limit` - от 1 до 100. Ответ: `entries`, `total`, `page`, `limit`.
+
+### `POST /api/media/queue?url=...`
+
+Ставит одиночное медиа в очередь. Параметры передаются в строке запроса:
+
+- `url` - обязательная ссылка на медиа;
+- `ttl` - время жизни в секундах;
+- `profile` - идентификатор профиля из `GET /api`;
+- `bitrate` - битрейт; требует `profile`;
+- `dontCleanTitle` - `true`, чтобы не очищать название;
+- `extra` - JSON-строка с произвольными метаданными.
+
+Плейлисты не поддерживаются. Ответ содержит запись и `endpoints` — готовые публичные ссылки на файл. Наличие такой ссылки не означает завершение скачивания: проверяйте окончание загрузки через запрос `status`.
+
+### `GET /api/media/:id`
+
+Возвращает одну запись, включая состояние, метаданные и `endpoints`. Если идентификатор не найден возвращает ошибку `404`.
+
+### `DELETE /api/media/:id`
+
+Аннулирует запись. По умолчанию файл переименовывается и остаётся на диске до последующей очистки. Параметры:
+
+- `hard=file` - удалить файл немедленно;
+- `hard=entry` - удалить запись;
+- `force=true` - разрешить операцию для ещё обрабатываемой или уже удалённой записи.
+
+Успешный ответ - `204`. Без `force` удаление *обрабатываемой* записи вернёт `400`.
+
+## Метаданные yt-dlp
+
+### `GET /api/ytdlp?url=...`
+
+Возвращает обработанные метаданные одиночной ссылки либо массив для альбома/плейлиста. `url` обязателен.
+
+### `GET /api/ytdlp/:id`
+
+Аналогично тому что выше, но URL берётся из существующей записи кеша. `dontCleanTitle=true` отключает очистку названий.
+
+## Пользователи
+
+### `GET /api/users`
+
+Возвращает список пользователей без хешей паролей. Требует аутентификацию.
+
+### `GET /api/users/me`
+
+Возвращает текущего пользователя.
+
+### `GET /api/users/:id`
+
+Возвращает пользователя по ID. Если не найден выдаёт ошибку `404`.
+
+### `POST /api/users`
+
+Только с доступом админа. Тело:
+
+```json
+{ "username": "user", "email": "user@example.com", "password": "strong-password", "role": "user" }
+```
+
+Допустимые роли определены API. Некорректная почта возвращает ошибку `400` а занятое имя - ошибку `409`.
+
+### `PATCH /api/users/:id`
+
+Только с доступом админа. Обновляет один или несколько параметров `username`, `email`, `role`, `password`. Не передавайте пустое тело.
+
+### `DELETE /api/users/:id`
+
+Только с доступом админа. Удаляет пользователя и возвращает сообщение об успехе.

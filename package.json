@@ -5,7 +5,7 @@
 	"type": "module",
 	"main": "index.js",
 	"scripts": {
-		"build": "pnpm --package=typescript dlx tsc",
+		"build": "tsc",
 		"___dev": "cross-env NODE_OPTIONS='--loader ./src/child_process_debug.js' tsx watch --ignore src/ParsedDatabaseSchema.ts src/index.ts",
 		"dev": "cross-env tsx watch --ignore src/ParsedDatabaseSchema.ts src/index.ts",
 		"lint": "pnpm exec biome lint --write",

@@ -1,0 +1,22 @@
+[Unit]
+Description=Floxy media cache API
+After=network.target
+
+[Service]
+Type=simple
+User=floxy
+Group=floxy
+WorkingDirectory=/opt/floxy
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/floxy/floxy.env
+ExecStart=/usr/bin/node /opt/floxy/dist/index.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/floxy/cache /opt/floxy/logs /opt/floxy/floxy.sqlite
+
+[Install]
+WantedBy=multi-user.target

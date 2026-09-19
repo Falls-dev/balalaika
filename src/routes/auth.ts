@@ -79,7 +79,7 @@ export default (floxy: Floxy) =>
         const user = await floxy.database.getUserByUsername(username);
         if (!user) return res.status(404).send({ message: "User not found." });
 
-        const maxDurationHours = 24 * 30; // 30 days max
+        const maxDurationHours = 24 * 365; // 365 days max
         const hours = durationHours && durationHours > 0 ? Math.min(durationHours, maxDurationHours) : maxDurationHours;
 
         const token = await new jwt.SignJWT({
