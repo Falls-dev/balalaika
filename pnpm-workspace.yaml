@@ -4,4 +4,3 @@ ignoredBuiltDependencies:
 onlyBuiltDependencies:
   - bcrypt
   - better-sqlite3
-  - ytdlp-nodejs
